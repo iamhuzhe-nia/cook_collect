@@ -1,0 +1,12 @@
+[package]
+name = "collect"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libftd2xx = "0.32.1"
+device_query = "1.1.1"
+chrono = "0.4.23"
+csv = "1.1.6"
