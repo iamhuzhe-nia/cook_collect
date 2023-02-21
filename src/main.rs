@@ -11,28 +11,47 @@ fn main() -> Result<(), FtStatus> {
     let mut wtr = csv::Writer::from_path(dt).unwrap();
 
     let mut ft = Ftdi::new()?;
-    ft.set_baud_rate(115200)?;
+    ft.set_baud_rate(3000000)?;
     ft.set_data_characteristics(BitsPerWord::Bits8, StopBits::Bits1, Parity::No)?;
     //let info = ft.device_info()?;
     //println!("Device information: {:?}", info);
 
     ft.purge_all()?;
 
-    const BUF_SIZE: usize = 4;
+    const BUF_SIZE: usize = 34 * 4;
     let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+    let mut header:[u8;1] = [0;1];
     loop {
-        let _: usize = ft.read(&mut buf[0..1])?;
-        if buf[0] == 0xfe {
+        let _: usize = ft.read(&mut header)?;
+        if header[0] == 0xfe {
             let _: usize = ft.read(&mut buf)?;
-            //println!("{}", bytes_read);
-
-            let ch1 = ((buf[0] as u16) << 8) + buf[1] as u16;
-            let ch2 = ((buf[2] as u16) << 8) + buf[3] as u16;
-
-            println!("{},{}", ch1, ch2);
-            wtr.write_record(&[ch1.to_string(), ch2.to_string()]).unwrap();
-
+            let mut adc_data = Vec::new();
+            for i in (0..BUF_SIZE).step_by(2){
+                adc_data.push((((buf[i] as u16)<<8) + buf[i+1] as u16).to_string());
+            }
+            wtr.write_record(&adc_data).unwrap();
             wtr.flush().unwrap();
+
+            // //println!("{}", bytes_read);
+
+            // let ch1 = ((buf[0] as u16) << 8) + buf[1] as u16;
+            // let ch2 = ((buf[2] as u16) << 8) + buf[3] as u16;
+
+            // println!("{},{}", ch1, ch2);
+            // wtr.write_record(&[ch1.to_string(), ch2.to_string()]).unwrap();
+
+            // wtr.flush().unwrap();
+
+
+
+
+
+
+
+
+
+
+
         }
 
         let keys: Vec<Keycode> = device_state.get_keys();
