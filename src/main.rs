@@ -37,7 +37,7 @@ fn main() -> Result<(), FtStatus> {
                     let _: usize = ft.read(&mut header)?;
                     if header[0] == 0u8 {
                         state = Fsm::IDLE;
-                       // println!("jmp to IDLE");
+                        // println!("jmp to IDLE");
                     }
                 }
             }
@@ -54,42 +54,68 @@ fn main() -> Result<(), FtStatus> {
                 }
             }
             Fsm::COBS => {
-                if ft.queue_status()? > 0 {
-                    let _: usize = ft.read(&mut header)?;
-                    serial_buffer_index += 1;
-                    serial_buffer[serial_buffer_index] = header[0];
-                    //println!("{serial_buffer_index}, {}", header[0]);
-                    if header[0] == 0u8 {
-                        state = Fsm::IDLE;
-                        if serial_buffer_index == 133 {
-                            let decoded_data_length = decode_buf(
-                                &serial_buffer[..=serial_buffer_index],
-                                &mut decoded_data,
-                            )
+                ft.read(&mut serial_buffer[1..134])?;
+                if serial_buffer[133] == 0 {
+                    state = Fsm::IDLE;
+                    let decoded_data_length =
+                        decode_buf(&serial_buffer[..134], &mut decoded_data)
                             .unwrap();
-                        //    println!("decoded bytes = {decoded_data_length}");
-                            if decoded_data_length == BUF_SIZE {
-                                //got the right package size
-                                let mut adc_data = Vec::new();
-                                for i in (0..BUF_SIZE).step_by(2) {
-                                    adc_data.push(
-                                        (((decoded_data[i] as u16) << 8)
-                                            + decoded_data[i + 1] as u16)
-                                            .to_string(),
-                                    ); // send as big-endian
-                                }
-                                println!("{}", adc_data[1]);
-                                wtr.write_record(&adc_data).unwrap();
-                                wtr.flush().unwrap();
-                            }else{
-                                println!("cobs error: decoded length={}", decoded_data_length);
-                            }
-                        } else {
-                            println!("error: ser index  = {serial_buffer_index}");
-                            // break;
+                    //    println!("decoded bytes = {decoded_data_length}");
+                    if decoded_data_length == BUF_SIZE {
+                        //got the right package size
+                        let mut adc_data = Vec::new();
+                        for i in (0..BUF_SIZE).step_by(2) {
+                            adc_data.push(
+                                (((decoded_data[i] as u16) << 8) + decoded_data[i + 1] as u16)
+                                    .to_string(),
+                            ); // send as big-endian
                         }
+                        println!("{}", adc_data[16]);
+                        wtr.write_record(&adc_data).unwrap();
+                        wtr.flush().unwrap();
+                    } else {
+                        println!("cobs error: decoded length={}", decoded_data_length);
                     }
+                } else {
+                    println!("error COBS");
+                    state = Fsm::RESYNC;
                 }
+                // if ft.queue_status()? > 0 {
+                //     let _: usize = ft.read(&mut header)?;
+                //     serial_buffer_index += 1;
+                //     serial_buffer[serial_buffer_index] = header[0];
+                //     //println!("{serial_buffer_index}, {}", header[0]);
+                //     if header[0] == 0u8 {
+                //         state = Fsm::IDLE;
+                //         if serial_buffer_index == 133 {
+                //             let decoded_data_length = decode_buf(
+                //                 &serial_buffer[..=serial_buffer_index],
+                //                 &mut decoded_data,
+                //             )
+                //             .unwrap();
+                //         //    println!("decoded bytes = {decoded_data_length}");
+                //             if decoded_data_length == BUF_SIZE {
+                //                 //got the right package size
+                //                 let mut adc_data = Vec::new();
+                //                 for i in (0..BUF_SIZE).step_by(2) {
+                //                     adc_data.push(
+                //                         (((decoded_data[i] as u16) << 8)
+                //                             + decoded_data[i + 1] as u16)
+                //                             .to_string(),
+                //                     ); // send as big-endian
+                //                 }
+                //                 println!("{}", adc_data[1]);
+                //                 wtr.write_record(&adc_data).unwrap();
+                //                 wtr.flush().unwrap();
+                //             }else{
+                //                 println!("cobs error: decoded length={}", decoded_data_length);
+                //             }
+                //         } else {
+                //             println!("error: ser index  = {serial_buffer_index}");
+                //             // break;
+                //         }
+                //     }
+                // }
             }
         }
 
