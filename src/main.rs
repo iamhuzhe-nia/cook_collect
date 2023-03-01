@@ -6,17 +6,15 @@ use libftd2xx::{BitsPerWord, FtStatus, Ftdi, FtdiCommon, Parity, StopBits};
 use argh::FromArgs;
 
 #[derive(FromArgs)]
-/// select E1 to E64 to stream out
-struct StreamData{
-    /// select single electrode data out: 1 to 64
-    #[argh(option, short='e', default="1")]
-    electrode: usize, // 1 to 64
+/// select data to display out of 20 electrode streaming
+struct StreamData {
+    /// select single electrode data out; relative index (from 0 to 19)
+    #[argh(option, short = 'e', default = "0")]
+    electrode: usize, // 0 to 19
 }
 
 fn main() -> Result<(), FtStatus> {
     let stream: StreamData = argh::from_env();
-
-
 
     let device_state = DeviceState::new();
     let mut dt = chrono::offset::Local::now()
@@ -40,7 +38,7 @@ fn main() -> Result<(), FtStatus> {
 
     let mut serial_buffer = [0u8; 400];
 
-    const BUF_SIZE: usize = 33 * 4;
+    const BUF_SIZE: usize = 40; //33 * 4;
     let mut decoded_data = [0u8; 400];
     let mut header: [u8; 1] = [0; 1];
     loop {
@@ -66,11 +64,14 @@ fn main() -> Result<(), FtStatus> {
                 }
             }
             Fsm::COBS => {
-                ft.read(&mut serial_buffer[1..134])?; // 33 * 4 = 132  + 2-byte extra from COBS
-                if serial_buffer[133] == 0 {
+                //ft.read(&mut serial_buffer[1..134])?; // 33 * 4 = 132  + 2-byte extra from COBS
+                ft.read(&mut serial_buffer[1..(BUF_SIZE + 2)])?;
+                //if serial_buffer[133] == 0 {
+                if serial_buffer[BUF_SIZE + 1] == 0 {
                     state = Fsm::IDLE;
                     let decoded_data_length =
-                        decode_buf(&serial_buffer[..134], &mut decoded_data).unwrap();
+                        decode_buf(&serial_buffer[..(BUF_SIZE + 2)], &mut decoded_data).unwrap();
+
                     //    println!("decoded bytes = {decoded_data_length}");
                     if decoded_data_length == BUF_SIZE {
                         //got the right package size
@@ -81,7 +82,9 @@ fn main() -> Result<(), FtStatus> {
                                     .to_string(),
                             ); // receive as big-endian
                         }
-                        println!("{}", adc_data[stream.electrode-1]);
+                        println!("{}", adc_data[stream.electrode]);
+                        //println!("{}", adc_data[0]);
+
                         wtr.write_record(&adc_data).unwrap();
                         wtr.flush().unwrap();
                     } else {
