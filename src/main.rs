@@ -41,6 +41,7 @@ fn main() -> Result<(), FtStatus> {
     const BUF_SIZE: usize = 40; //33 * 4;
     let mut decoded_data = [0u8; 400];
     let mut header: [u8; 1] = [0; 1];
+    let mut x_index:u64 = 0;
     loop {
         match state {
             Fsm::RESYNC => {
@@ -82,7 +83,8 @@ fn main() -> Result<(), FtStatus> {
                                     .to_string(),
                             ); // receive as big-endian
                         }
-                        println!("{}", adc_data[stream.electrode]);
+                        x_index += 1;
+                        println!("{},{}",x_index, adc_data[stream.electrode]);
                         //println!("{}", adc_data[0]);
 
                         wtr.write_record(&adc_data).unwrap();
