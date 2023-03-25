@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 libftd2xx = "0.32.1"
-device_query = "1.1.1"
+# device_query = "1.1.1"
 chrono = "0.4.23"
 csv = "1.1.6"
 corncobs = "0.1.3"

@@ -1,6 +1,6 @@
 use chrono;
 use corncobs::*;
-use device_query::{DeviceQuery, DeviceState, Keycode};
+//use device_query::{DeviceQuery, DeviceState, Keycode};
 use libftd2xx::{BitsPerWord, FtStatus, Ftdi, FtdiCommon, Parity, StopBits};
 
 
@@ -15,20 +15,20 @@ struct TimeBase {
 }
 
 
-fn main() -> Result<(), FtStatus> {
+fn main() -> ! {
     let time_base: TimeBase = argh::from_env();
 
-    let device_state = DeviceState::new();
+    //let device_state = DeviceState::new();
     let mut dt = chrono::offset::Local::now()
         .format("%Y-%m-%d-%H-%M-%S")
         .to_string();
     dt.push_str(".csv");
     let mut wtr = csv::Writer::from_path(dt).unwrap();
 
-    let mut ft = Ftdi::new()?;
-    ft.set_baud_rate(115200)?;
-    ft.set_data_characteristics(BitsPerWord::Bits8, StopBits::Bits1, Parity::No)?;
-    ft.purge_all()?;
+    let mut ft = Ftdi::new().unwrap();
+    ft.set_baud_rate(115200).unwrap();
+    ft.set_data_characteristics(BitsPerWord::Bits8, StopBits::Bits1, Parity::No).unwrap();
+    ft.purge_all().unwrap();
 
     // incoming COBS from serial
     enum Fsm {
@@ -47,8 +47,8 @@ fn main() -> Result<(), FtStatus> {
     loop {
         match state {
             Fsm::RESYNC => {
-                if ft.queue_status()? > 0 {
-                    let _: usize = ft.read(&mut header)?;
+                if ft.queue_status().unwrap() > 0 {
+                    let _: usize = ft.read(&mut header).unwrap();
                     if header[0] == 0u8 {
                         state = Fsm::IDLE;
                         // println!("jmp to IDLE");
@@ -57,8 +57,8 @@ fn main() -> Result<(), FtStatus> {
             }
 
             Fsm::IDLE => {
-                if ft.queue_status()? > 0 {
-                    let _: usize = ft.read(&mut header)?;
+                if ft.queue_status().unwrap() > 0 {
+                    let _: usize = ft.read(&mut header).unwrap();
                     if header[0] != 0u8 {
                         serial_buffer[0] = header[0];
                         state = Fsm::COBS;
@@ -67,7 +67,7 @@ fn main() -> Result<(), FtStatus> {
                 }
             }
             Fsm::COBS => {
-                ft.read(&mut serial_buffer[1..(BUF_SIZE + 2)])?;
+                ft.read(&mut serial_buffer[1..(BUF_SIZE + 2)]).unwrap();
                 if serial_buffer[BUF_SIZE + 1] == 0 {
                     state = Fsm::IDLE;
                     let decoded_data_length =
@@ -97,12 +97,12 @@ fn main() -> Result<(), FtStatus> {
             }
         }
 
-        let keys: Vec<Keycode> = device_state.get_keys();
-        if keys.contains(&Keycode::Q) {
-            break;
-        }
+        // let keys: Vec<Keycode> = device_state.get_keys();
+        // if keys.contains(&Keycode::Q) {
+        //     break;
+        // }
     }
     wtr.flush().unwrap();
-    ft.close()?;
-    Ok(())
+    ft.close().unwrap();
+    //Ok(())
 }
