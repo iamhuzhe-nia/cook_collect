@@ -3,18 +3,20 @@ use corncobs::*;
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use libftd2xx::{BitsPerWord, FtStatus, Ftdi, FtdiCommon, Parity, StopBits};
 
+
 use argh::FromArgs;
 
 #[derive(FromArgs)]
-/// select data to display out of 20 electrode streaming
-struct StreamData {
-    /// select single electrode data out; relative index (from 0 to 19)
-    #[argh(option, short = 'e', default = "0")]
-    electrode: usize, // 0 to 19
+/// set time base for collected data
+struct TimeBase {
+    /// time step in seconds
+    #[argh(option, short = 't', default = "0.1")]
+    t_sec: f64, // 0.1 sec default
 }
 
+
 fn main() -> Result<(), FtStatus> {
-    let stream: StreamData = argh::from_env();
+    let time_base: TimeBase = argh::from_env();
 
     let device_state = DeviceState::new();
     let mut dt = chrono::offset::Local::now()
@@ -24,7 +26,7 @@ fn main() -> Result<(), FtStatus> {
     let mut wtr = csv::Writer::from_path(dt).unwrap();
 
     let mut ft = Ftdi::new()?;
-    ft.set_baud_rate(3000000)?;
+    ft.set_baud_rate(115200)?;
     ft.set_data_characteristics(BitsPerWord::Bits8, StopBits::Bits1, Parity::No)?;
     ft.purge_all()?;
 
@@ -38,10 +40,10 @@ fn main() -> Result<(), FtStatus> {
 
     let mut serial_buffer = [0u8; 400];
 
-    const BUF_SIZE: usize = 40; //33 * 4;
+    const BUF_SIZE: usize = 4; // 4 + 2
     let mut decoded_data = [0u8; 400];
     let mut header: [u8; 1] = [0; 1];
-    let mut x_index:u64 = 0;
+    let mut x_index: f64 = 0.0;
     loop {
         match state {
             Fsm::RESYNC => {
@@ -65,35 +67,31 @@ fn main() -> Result<(), FtStatus> {
                 }
             }
             Fsm::COBS => {
-                //ft.read(&mut serial_buffer[1..134])?; // 33 * 4 = 132  + 2-byte extra from COBS
                 ft.read(&mut serial_buffer[1..(BUF_SIZE + 2)])?;
-                //if serial_buffer[133] == 0 {
                 if serial_buffer[BUF_SIZE + 1] == 0 {
                     state = Fsm::IDLE;
                     let decoded_data_length =
                         decode_buf(&serial_buffer[..(BUF_SIZE + 2)], &mut decoded_data).unwrap();
 
-                    //    println!("decoded bytes = {decoded_data_length}");
                     if decoded_data_length == BUF_SIZE {
                         //got the right package size
-                        let mut adc_data = Vec::new();
-                        for i in (0..BUF_SIZE).step_by(2) {
-                            adc_data.push(
-                                (((decoded_data[i] as u16) << 8) + decoded_data[i + 1] as u16)
-                                    .to_string(),
-                            ); // receive as big-endian
-                        }
-                        x_index += 1;
-                        println!("{},{}",x_index, adc_data[stream.electrode]);
+                        let adc_data = (2.0 * 0.8 * (((decoded_data[0] as u32) << 24)
+                            + ((decoded_data[1] as u32) << 16)
+                            + ((decoded_data[2] as u32) << 8)
+                            + (decoded_data[3] as u32)) as f64 / 1000.0)
+                            .to_string();
+
+                        x_index += time_base.t_sec;
+                        println!("{}, {}", x_index, adc_data);
                         //println!("{}", adc_data[0]);
 
-                        wtr.write_record(&adc_data).unwrap();
+                        wtr.write_record(&[x_index.to_string(), adc_data]).unwrap();
                         wtr.flush().unwrap();
                     } else {
                         println!("cobs error: decoded length={}", decoded_data_length);
                     }
                 } else {
-                    println!("error COBS");
+                    //println!("error COBS");
                     state = Fsm::RESYNC;
                 }
             }
